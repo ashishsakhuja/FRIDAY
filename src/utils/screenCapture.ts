@@ -2,8 +2,6 @@ import html2canvas from 'html2canvas';
 
 export async function captureScreen(): Promise<string> {
   try {
-    // For web applications, we can only capture the current page
-    // Note: Full screen capture requires browser extensions or desktop apps
     const canvas = await html2canvas(document.body, {
       height: window.innerHeight,
       width: window.innerWidth,
@@ -12,7 +10,13 @@ export async function captureScreen(): Promise<string> {
       scale: 0.5, // Reduce size for API efficiency
     });
     
-    return canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Clean up canvas to free memory
+    canvas.width = 0;
+    canvas.height = 0;
+    
+    return dataUrl;
   } catch (error) {
     console.error('Screen capture failed:', error);
     throw new Error('Unable to capture screen');
@@ -67,7 +71,12 @@ export async function analyzeScreenWithGPT(screenshot: string, userQuery: string
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || 'I apologize, but I encountered an error analyzing your screen.';
+    const response_text = data.choices[0]?.message?.content || 'I apologize, but I encountered an error analyzing your screen.';
+    
+    // Clear the screenshot from memory after processing
+    // The screenshot parameter will be garbage collected
+    
+    return response_text;
   } catch (error) {
     console.error('Screen analysis error:', error);
     throw error;

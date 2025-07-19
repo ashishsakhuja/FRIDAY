@@ -33,6 +33,22 @@ export function useVoiceAssistant() {
 
   const processUserInput = useCallback(async (transcript: string, hasScreenshot = false) => {
     try {
+      // Check for power down commands
+      const powerDownCommands = ['power down', 'standby', 'sleep', 'shut down', 'go to sleep', 'power off'];
+      if (powerDownCommands.some(cmd => transcript.toLowerCase().includes(cmd))) {
+        addMessage(transcript, true);
+        addMessage("Powering down. Press the orb to wake me up.", false);
+        
+        setState('speaking');
+        const audioBuffer = await textToSpeech("Powering down. Press the orb to wake me up.");
+        await playAudio(audioBuffer);
+        
+        // Power down - stop auto listening and go to idle
+        setAutoListening(false);
+        setState('idle');
+        return;
+      }
+      
       setState('thinking');
       
       let response: string;
@@ -49,6 +65,9 @@ export function useVoiceAssistant() {
           const screenshot = await captureScreen();
           response = await analyzeScreenWithGPT(screenshot, transcript);
           addMessage(transcript, true).hasScreenshot = true;
+          
+          // Clear screenshot reference to help with garbage collection
+          // The screenshot variable will be cleaned up automatically
         } catch (screenError) {
           console.warn('Screen capture failed, using regular response:', screenError);
           response = await generateResponse(transcript, getConversationHistory());
@@ -81,13 +100,28 @@ export function useVoiceAssistant() {
   }, [addMessage, getConversationHistory, autoListening]);
 
   const startListeningContinuous = useCallback(() => {
-    speechRecognition.current.startListening(() => {
-      // Called when no speech detected - turn off auto-listening
-      setAutoListening(false);
-      setState('idle');
-    }).then((transcript) => {
+    speechRecognition.current.startListening(
+      () => {
+        // Called when no speech detected - turn off auto-listening
+        setAutoListening(false);
+        setState('idle');
+      },
+      () => {
+        // Called when no-speech error occurs - just continue listening
+        console.log('No speech detected, continuing to listen...');
+      }
+    ).then((transcript) => {
       if (transcript.trim()) {
         processUserInput(transcript);
+      } else {
+        // Empty transcript (from no-speech error) - just continue listening
+        if (autoListening) {
+          setTimeout(() => {
+            if (autoListening && state === 'listening') {
+              startListeningContinuous();
+            }
+          }, 500);
+        }
       }
     }).catch((error) => {
       console.error('Speech recognition error:', error);

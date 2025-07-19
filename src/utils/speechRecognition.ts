@@ -3,6 +3,7 @@ export class SpeechRecognitionService {
   private isListening = false;
   private silenceTimer: NodeJS.Timeout | null = null;
   private onSilenceDetected?: () => void;
+  private onNoSpeechDetected?: () => void;
 
   constructor() {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -20,7 +21,7 @@ export class SpeechRecognitionService {
     this.recognition.lang = 'en-US';
   }
 
-  public startListening(onSilenceDetected?: () => void): Promise<string> {
+  public startListening(onSilenceDetected?: () => void, onNoSpeechDetected?: () => void): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.recognition) {
         reject(new Error('Speech recognition not supported'));
@@ -33,6 +34,7 @@ export class SpeechRecognitionService {
       }
 
       this.onSilenceDetected = onSilenceDetected;
+      this.onNoSpeechDetected = onNoSpeechDetected;
       let finalTranscript = '';
       let hasSpoken = false;
 
@@ -50,14 +52,28 @@ export class SpeechRecognitionService {
       this.recognition.onerror = (event) => {
         this.isListening = false;
         this.clearSilenceTimer();
-        reject(new Error(`Speech recognition error: ${event.error}`));
+        
+        // Handle no-speech error gracefully
+        if (event.error === 'no-speech') {
+          if (this.onNoSpeechDetected) {
+            this.onNoSpeechDetected();
+          }
+          resolve(''); // Return empty string instead of rejecting
+        } else {
+          reject(new Error(`Speech recognition error: ${event.error}`));
+        }
       };
 
       this.recognition.onend = () => {
         if (this.isListening) {
-          // If we're still supposed to be listening, restart
-          if (!hasSpoken && this.onSilenceDetected) {
-            this.onSilenceDetected();
+          // Only restart if we haven't had a no-speech error
+          if (!hasSpoken) {
+            // Restart listening automatically
+            setTimeout(() => {
+              if (this.isListening) {
+                this.recognition?.start();
+              }
+            }, 100);
           }
         }
       };

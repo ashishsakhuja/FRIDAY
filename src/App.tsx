@@ -74,7 +74,7 @@ function App() {
           ) : (
             <>
               <p className="text-gray-400 text-sm">
-                Say "analyze my screen" or "what do you see" for screen analysis
+                Say "analyze my screen" for screen analysis • Say "power down" to enter standby
               </p>
             <p className="text-gray-300">
               {state === 'listening' && (autoListening ? 'Speak naturally - I\'ll respond when you pause' : 'Speak now, or click the orb to stop listening')}
