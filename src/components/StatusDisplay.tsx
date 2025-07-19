@@ -1,0 +1,57 @@
+import React from 'react';
+import { Mic, MicOff, Brain, Volume2 } from 'lucide-react';
+import type { AssistantState } from '../types';
+
+interface StatusDisplayProps {
+  state: AssistantState;
+  error: string | null;
+}
+
+export function StatusDisplay({ state, error }: StatusDisplayProps) {
+  const getStatusInfo = () => {
+    switch (state) {
+      case 'listening':
+        return {
+          icon: <Mic className="w-6 h-6 text-blue-400" />,
+          text: 'Listening...',
+          color: 'text-blue-400',
+        };
+      case 'thinking':
+        return {
+          icon: <Brain className="w-6 h-6 text-cyan-400 animate-pulse" />,
+          text: 'Processing...',
+          color: 'text-cyan-400',
+        };
+      case 'speaking':
+        return {
+          icon: <Volume2 className="w-6 h-6 text-purple-400" />,
+          text: 'Speaking...',
+          color: 'text-purple-400',
+        };
+      default:
+        return {
+          icon: <MicOff className="w-6 h-6 text-gray-400" />,
+          text: 'Ready',
+          color: 'text-gray-400',
+        };
+    }
+  };
+
+  const status = getStatusInfo();
+
+  return (
+    <div className="flex flex-col items-center space-y-2">
+      <div className="flex items-center space-x-2">
+        {status.icon}
+        <span className={`text-lg font-medium ${status.color}`}>
+          {status.text}
+        </span>
+      </div>
+      {error && (
+        <div className="text-red-400 text-sm text-center max-w-md">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
