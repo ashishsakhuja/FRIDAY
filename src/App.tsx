@@ -72,6 +72,7 @@ function App() {
               Click the orb to start talking with FRIDAY
             </p>
           ) : (
+            <>
               <p className="text-gray-400 text-sm">
                 Say "analyze my screen" or "what do you see" for screen analysis
               </p>
@@ -80,6 +81,7 @@ function App() {
               {state === 'thinking' && 'Processing your request...'}
               {state === 'speaking' && 'FRIDAY is responding...'}
             </p>
+            </>
           )}
         </div>
 
