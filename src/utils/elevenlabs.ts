@@ -11,10 +11,33 @@ const defaultVoiceSettings: VoiceSettings = {
   use_speaker_boost: true,
 };
 
+function cleanTextForSpeech(text: string): string {
+  return text
+    // Remove markdown formatting
+    .replace(/\*\*/g, '') // Remove bold asterisks
+    .replace(/\*/g, '') // Remove italic asterisks
+    .replace(/#{1,6}\s/g, '') // Remove markdown headers
+    .replace(/`([^`]+)`/g, '$1') // Remove code backticks but keep content
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove markdown links but keep text
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1') // Remove underscores but keep content
+    .replace(/~~([^~]+)~~/g, '$1') // Remove strikethrough but keep content
+    
+    // Clean up list formatting
+    .replace(/^\s*[-*+]\s+/gm, '') // Remove bullet points
+    .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered lists
+    
+    // Clean up extra whitespace
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim(); // Remove leading/trailing whitespace
+}
+
 export async function textToSpeech(text: string): Promise<ArrayBuffer> {
   if (!API_KEY) {
     throw new Error('ElevenLabs API key not configured');
   }
+
+  // Clean the text before sending to speech synthesis
+  const cleanedText = cleanTextForSpeech(text);
 
   try {
     const response = await fetch(API_URL, {
@@ -25,7 +48,7 @@ export async function textToSpeech(text: string): Promise<ArrayBuffer> {
         'xi-api-key': API_KEY,
       },
       body: JSON.stringify({
-        text,
+        text: cleanedText,
         model_id: 'eleven_monolingual_v1',
         voice_settings: defaultVoiceSettings,
       }),
