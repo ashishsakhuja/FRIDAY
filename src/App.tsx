@@ -10,8 +10,10 @@ function App() {
     state,
     messages,
     error,
+    autoListening,
     startListening,
     stopListening,
+    analyzeScreen,
     clearMessages,
     isSupported,
   } = useVoiceAssistant();
@@ -41,15 +43,23 @@ function App() {
           <p className="text-gray-300 text-lg">
             Female Replacement Intelligent Digital Assistant Youth
           </p>
+          <p className="text-gray-400 text-sm">
+            Enhanced with Screen Analysis & Conversation Memory
+          </p>
         </div>
 
         {/* Main orb */}
         <div className="relative">
-          <Orb state={state} onClick={handleOrbClick} />
+          <Orb 
+            state={state} 
+            onClick={handleOrbClick} 
+            onScreenAnalyze={analyzeScreen}
+            autoListening={autoListening}
+          />
         </div>
 
         {/* Status display */}
-        <StatusDisplay state={state} error={error} />
+        <StatusDisplay state={state} error={error} autoListening={autoListening} />
 
         {/* Instructions */}
         <div className="text-center max-w-md">
@@ -62,8 +72,11 @@ function App() {
               Click the orb to start talking with FRIDAY
             </p>
           ) : (
+              <p className="text-gray-400 text-sm">
+                Say "analyze my screen" or "what do you see" for screen analysis
+              </p>
             <p className="text-gray-300">
-              {state === 'listening' && 'Speak now, or click the orb to stop listening'}
+              {state === 'listening' && (autoListening ? 'Speak naturally - I\'ll respond when you pause' : 'Speak now, or click the orb to stop listening')}
               {state === 'thinking' && 'Processing your request...'}
               {state === 'speaking' && 'FRIDAY is responding...'}
             </p>

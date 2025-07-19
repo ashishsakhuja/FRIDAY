@@ -3,11 +3,13 @@ import type { AssistantState, Message } from '../types';
 import { generateResponse } from '../utils/openai';
 import { textToSpeech, playAudio } from '../utils/elevenlabs';
 import { SpeechRecognitionService } from '../utils/speechRecognition';
+import { captureScreen, analyzeScreenWithGPT } from '../utils/screenCapture';
 
 export function useVoiceAssistant() {
   const [state, setState] = useState<AssistantState>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [autoListening, setAutoListening] = useState(false);
   
   const speechRecognition = useRef(new SpeechRecognitionService());
 
@@ -22,6 +24,79 @@ export function useVoiceAssistant() {
     return message;
   }, []);
 
+  const getConversationHistory = useCallback(() => {
+    return messages.slice(-10).map(msg => ({
+      role: msg.isUser ? 'user' : 'assistant',
+      content: msg.text
+    }));
+  }, [messages]);
+
+  const processUserInput = useCallback(async (transcript: string, hasScreenshot = false) => {
+    try {
+      setState('thinking');
+      
+      let response: string;
+      
+      // Check if user wants screen analysis
+      const needsScreenAnalysis = transcript.toLowerCase().includes('screen') || 
+                                 transcript.toLowerCase().includes('see') ||
+                                 transcript.toLowerCase().includes('look') ||
+                                 transcript.toLowerCase().includes('analyze') ||
+                                 hasScreenshot;
+      
+      if (needsScreenAnalysis) {
+        try {
+          const screenshot = await captureScreen();
+          response = await analyzeScreenWithGPT(screenshot, transcript);
+          addMessage(transcript, true).hasScreenshot = true;
+        } catch (screenError) {
+          console.warn('Screen capture failed, using regular response:', screenError);
+          response = await generateResponse(transcript, getConversationHistory());
+          addMessage(transcript, true);
+        }
+      } else {
+        response = await generateResponse(transcript, getConversationHistory());
+        addMessage(transcript, true);
+      }
+      
+      addMessage(response, false);
+      
+      // Convert response to speech
+      setState('speaking');
+      const audioBuffer = await textToSpeech(response);
+      await playAudio(audioBuffer);
+      
+      // Return to auto-listening if enabled
+      if (autoListening) {
+        setState('listening');
+        startListeningContinuous();
+      } else {
+        setState('idle');
+      }
+    } catch (error) {
+      console.error('Processing error:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      setState('idle');
+    }
+  }, [addMessage, getConversationHistory, autoListening]);
+
+  const startListeningContinuous = useCallback(() => {
+    speechRecognition.current.startListening(() => {
+      // Called when no speech detected - turn off auto-listening
+      setAutoListening(false);
+      setState('idle');
+    }).then((transcript) => {
+      if (transcript.trim()) {
+        processUserInput(transcript);
+      }
+    }).catch((error) => {
+      console.error('Speech recognition error:', error);
+      setError(error.message);
+      setState('idle');
+      setAutoListening(false);
+    });
+  }, [processUserInput]);
+
   const startListening = useCallback(async () => {
     if (!speechRecognition.current.isSupported()) {
       setError('Speech recognition is not supported in this browser');
@@ -31,32 +106,47 @@ export function useVoiceAssistant() {
     try {
       setState('listening');
       setError(null);
+      setAutoListening(true);
       
-      const transcript = await speechRecognition.current.startListening();
-      addMessage(transcript, true);
-      
-      // Process the user's message
+      startListeningContinuous();
+    } catch (error) {
+      console.error('Voice assistant error:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      setState('idle');
+      setAutoListening(false);
+    }
+  }, [startListeningContinuous]);
+
+  const stopListening = useCallback(() => {
+    speechRecognition.current.stopListening();
+    setAutoListening(false);
+    setState('idle');
+  }, []);
+
+  const analyzeScreen = useCallback(async () => {
+    if (state !== 'idle') return;
+    
+    try {
       setState('thinking');
-      const response = await generateResponse(transcript);
+      setError(null);
+      
+      const screenshot = await captureScreen();
+      const response = await analyzeScreenWithGPT(screenshot, "What do you see on my screen? Help me with what I'm working on.");
+      
+      addMessage("Analyze my screen", true).hasScreenshot = true;
       addMessage(response, false);
       
-      // Convert response to speech
       setState('speaking');
       const audioBuffer = await textToSpeech(response);
       await playAudio(audioBuffer);
       
       setState('idle');
     } catch (error) {
-      console.error('Voice assistant error:', error);
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+      console.error('Screen analysis error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to analyze screen');
       setState('idle');
     }
-  }, [addMessage]);
-
-  const stopListening = useCallback(() => {
-    speechRecognition.current.stopListening();
-    setState('idle');
-  }, []);
+  }, [state, addMessage]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -67,8 +157,10 @@ export function useVoiceAssistant() {
     state,
     messages,
     error,
+    autoListening,
     startListening,
     stopListening,
+    analyzeScreen,
     clearMessages,
     isSupported: speechRecognition.current.isSupported(),
   };

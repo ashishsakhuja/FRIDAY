@@ -1,12 +1,27 @@
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 const API_URL = 'https://api.openai.com/v1/chat/completions';
 
-export async function generateResponse(message: string): Promise<string> {
+export async function generateResponse(
+  message: string, 
+  conversationHistory: Array<{role: string, content: string}> = []
+): Promise<string> {
   if (!API_KEY) {
     throw new Error('OpenAI API key not configured');
   }
 
   try {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are FRIDAY, an advanced AI assistant like from Iron Man. Be helpful, intelligent, and slightly witty. Keep responses concise and conversational. You have a female personality and should respond as FRIDAY would - professional but with personality. You can remember our conversation history and provide contextual responses.'
+      },
+      ...conversationHistory,
+      {
+        role: 'user',
+        content: message
+      }
+    ];
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -15,16 +30,7 @@ export async function generateResponse(message: string): Promise<string> {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are FRIDAY, an advanced AI assistant like from Iron Man. Be helpful, intelligent, and slightly witty. Keep responses concise and conversational. You have a female personality and should respond as FRIDAY would - professional but with personality.'
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
+        messages,
         max_tokens: 150,
         temperature: 0.7,
       }),

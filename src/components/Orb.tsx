@@ -4,15 +4,17 @@ import type { AssistantState } from '../types';
 interface OrbProps {
   state: AssistantState;
   onClick: () => void;
+  onScreenAnalyze?: () => void;
+  autoListening?: boolean;
 }
 
-export function Orb({ state, onClick }: OrbProps) {
+export function Orb({ state, onClick, onScreenAnalyze, autoListening }: OrbProps) {
   const getOrbClasses = () => {
     const baseClasses = 'relative w-48 h-48 rounded-full cursor-pointer transition-all duration-500 transform hover:scale-105';
     
     switch (state) {
       case 'listening':
-        return `${baseClasses} animate-pulse shadow-2xl shadow-blue-500/50`;
+        return `${baseClasses} ${autoListening ? 'animate-pulse' : 'animate-ping'} shadow-2xl shadow-blue-500/50`;
       case 'thinking':
         return `${baseClasses} animate-spin shadow-2xl shadow-cyan-500/50`;
       case 'speaking':
@@ -25,7 +27,7 @@ export function Orb({ state, onClick }: OrbProps) {
   const getGradient = () => {
     switch (state) {
       case 'listening':
-        return 'from-blue-400 via-blue-500 to-blue-600';
+        return autoListening ? 'from-green-400 via-blue-500 to-blue-600' : 'from-blue-400 via-blue-500 to-blue-600';
       case 'thinking':
         return 'from-cyan-400 via-cyan-500 to-cyan-600';
       case 'speaking':
@@ -36,7 +38,7 @@ export function Orb({ state, onClick }: OrbProps) {
   };
 
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex flex-col items-center justify-center space-y-4">
       <div 
         className={getOrbClasses()}
         onClick={onClick}
@@ -70,7 +72,28 @@ export function Orb({ state, onClick }: OrbProps) {
                  style={{ animationDelay: '1.5s' }} />
           </>
         )}
+        
+        {/* Auto-listening indicator */}
+        {autoListening && state === 'listening' && (
+          <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2">
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+            </div>
+          </div>
+        )}
       </div>
+      
+      {/* Screen Analysis Button */}
+      {onScreenAnalyze && state === 'idle' && (
+        <button
+          onClick={onScreenAnalyze}
+          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-medium hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-105 shadow-lg"
+        >
+          📱 Analyze Screen
+        </button>
+      )}
     </div>
   );
 }

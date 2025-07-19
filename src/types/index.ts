@@ -5,6 +5,7 @@ export interface Message {
   text: string;
   timestamp: Date;
   isUser: boolean;
+  hasScreenshot?: boolean;
 }
 
 export interface VoiceSettings {
@@ -12,4 +13,10 @@ export interface VoiceSettings {
   similarity_boost: number;
   style: number;
   use_speaker_boost: boolean;
+}
+
+export interface ConversationContext {
+  messages: Message[];
+  lastScreenshot?: string;
+  userPreferences?: Record<string, any>;
 }
