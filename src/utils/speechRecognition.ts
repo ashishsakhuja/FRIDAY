@@ -2,7 +2,6 @@ export class SpeechRecognitionService {
   private recognition: SpeechRecognition | null = null;
   private isListening = false;
   private isWakeWordListening = false;
-  private _isRecognitionActive = false;
   private silenceTimer: NodeJS.Timeout | null = null;
   private onSilenceDetected?: () => void;
   private onNoSpeechDetected?: () => void;
@@ -22,23 +21,10 @@ export class SpeechRecognitionService {
     this.recognition.continuous = true;
     this.recognition.interimResults = false;
     this.recognition.lang = 'en-US';
-
-    // Track recognition state
-    this.recognition.onstart = () => {
-      this._isRecognitionActive = true;
-    };
-
-    this.recognition.onend = () => {
-      this._isRecognitionActive = false;
-    };
-
-    this.recognition.onerror = () => {
-      this._isRecognitionActive = false;
-    };
   }
 
   public startWakeWordListening(onWakeWordDetected: () => void): void {
-    if (!this.recognition || this.isListening || this._isRecognitionActive) return;
+    if (!this.recognition || this.isListening) return;
 
     this.onWakeWordDetected = onWakeWordDetected;
     this.isWakeWordListening = true;
@@ -64,11 +50,10 @@ export class SpeechRecognitionService {
     };
 
     this.recognition.onerror = (event) => {
-      this._isRecognitionActive = false;
       if (event.error === 'no-speech' && this.isWakeWordListening) {
         // Restart wake word listening after a brief pause
         setTimeout(() => {
-          if (this.isWakeWordListening && !this._isRecognitionActive) {
+          if (this.isWakeWordListening) {
             this.recognition?.start();
           }
         }, 1000);
@@ -76,11 +61,10 @@ export class SpeechRecognitionService {
     };
 
     this.recognition.onend = () => {
-      this._isRecognitionActive = false;
       if (this.isWakeWordListening) {
         // Restart wake word listening
         setTimeout(() => {
-          if (this.isWakeWordListening && !this._isRecognitionActive) {
+          if (this.isWakeWordListening) {
             this.recognition?.start();
           }
         }, 500);
@@ -104,7 +88,7 @@ export class SpeechRecognitionService {
         return;
       }
 
-      if (this.isListening || this._isRecognitionActive) {
+      if (this.isListening) {
         reject(new Error('Already listening'));
         return;
       }
@@ -132,7 +116,6 @@ export class SpeechRecognitionService {
 
       this.recognition.onerror = (event) => {
         this.isListening = false;
-        this._isRecognitionActive = false;
         this.clearSilenceTimer();
         
         // Handle no-speech error gracefully
@@ -147,13 +130,12 @@ export class SpeechRecognitionService {
       };
 
       this.recognition.onend = () => {
-        this._isRecognitionActive = false;
         if (this.isListening) {
           // Only restart if we haven't had a no-speech error
           if (!hasSpoken) {
             // Restart listening automatically
             setTimeout(() => {
-              if (this.isListening && !this._isRecognitionActive) {
+              if (this.isListening) {
                 this.recognition?.start();
               }
             }, 100);
