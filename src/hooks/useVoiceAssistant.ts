@@ -17,6 +17,24 @@ export function useVoiceAssistant() {
   const speechRecognition = useRef(new SpeechRecognitionService());
   const dynamicAnalysisTimer = useRef<NodeJS.Timeout | null>(null);
 
+  const addMessage = useCallback((text: string, isUser: boolean) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      text,
+      timestamp: new Date(),
+      isUser,
+    };
+    setMessages(prev => [...prev, message]);
+    return message;
+  }, []);
+
+  const getConversationHistory = useCallback(() => {
+    return messages.slice(-10).map(msg => ({
+      role: msg.isUser ? 'user' : 'assistant',
+      content: msg.text
+    }));
+  }, [messages]);
+
   // Start wake word listening when component mounts
   useEffect(() => {
     if (speechRecognition.current.isSupported() && !isAwake) {
@@ -84,23 +102,6 @@ export function useVoiceAssistant() {
       }
     }, 30000); // Analyze every 30 seconds
   }, [state, autoListening, lastScreenAnalysis, addMessage]);
-  const addMessage = useCallback((text: string, isUser: boolean) => {
-    const message: Message = {
-      id: Date.now().toString(),
-      text,
-      timestamp: new Date(),
-      isUser,
-    };
-    setMessages(prev => [...prev, message]);
-    return message;
-  }, []);
-
-  const getConversationHistory = useCallback(() => {
-    return messages.slice(-10).map(msg => ({
-      role: msg.isUser ? 'user' : 'assistant',
-      content: msg.text
-    }));
-  }, [messages]);
 
   const processUserInput = useCallback(async (transcript: string, hasScreenshot = false) => {
     try {
