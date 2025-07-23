@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useEffect } from 'react';
 import type { AssistantState, Message } from '../types';
 import { generateResponse } from '../utils/openai';
 import { textToSpeech, playAudio } from '../utils/elevenlabs';
@@ -10,9 +11,79 @@ export function useVoiceAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [autoListening, setAutoListening] = useState(false);
+  const [isAwake, setIsAwake] = useState(false);
+  const [lastScreenAnalysis, setLastScreenAnalysis] = useState<string>('');
   
   const speechRecognition = useRef(new SpeechRecognitionService());
+  const dynamicAnalysisTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Start wake word listening when component mounts
+  useEffect(() => {
+    if (speechRecognition.current.isSupported() && !isAwake) {
+      speechRecognition.current.startWakeWordListening(() => {
+        setIsAwake(true);
+        setAutoListening(true);
+        setState('listening');
+        startListeningContinuous();
+        startDynamicScreenAnalysis();
+      });
+    }
+
+    return () => {
+      speechRecognition.current.stopWakeWordListening();
+      if (dynamicAnalysisTimer.current) {
+        clearInterval(dynamicAnalysisTimer.current);
+      }
+    };
+  }, [isAwake]);
+
+  const startDynamicScreenAnalysis = useCallback(() => {
+    if (dynamicAnalysisTimer.current) {
+      clearInterval(dynamicAnalysisTimer.current);
+    }
+
+    dynamicAnalysisTimer.current = setInterval(async () => {
+      if (state === 'idle' || state === 'listening') {
+        try {
+          const screenshot = await captureScreen(true);
+          
+          // Only analyze if screen content has changed significantly
+          if (screenshot !== lastScreenAnalysis) {
+            setLastScreenAnalysis(screenshot);
+            
+            const analysis = await analyzeScreenWithGPT(
+              screenshot, 
+              "Analyze what the user is currently working on. Only provide suggestions if you see something that could be improved or if you can offer helpful assistance. Be brief and only speak up when truly helpful.",
+              true
+            );
+            
+            // Only respond if the analysis suggests something useful
+            if (analysis && analysis.length > 50 && !analysis.toLowerCase().includes('looks good') && !analysis.toLowerCase().includes('nothing to suggest')) {
+              addMessage("Dynamic screen analysis", false);
+              addMessage(analysis, false);
+              
+              if (state !== 'speaking') {
+                setState('speaking');
+                const audioBuffer = await textToSpeech(analysis);
+                await playAudio(audioBuffer);
+                
+                if (autoListening) {
+                  setState('listening');
+                } else {
+                  setState('idle');
+                }
+              }
+            }
+          }
+          
+          // Clear screenshot immediately
+          setLastScreenAnalysis('');
+        } catch (error) {
+          console.log('Dynamic analysis skipped:', error);
+        }
+      }
+    }, 30000); // Analyze every 30 seconds
+  }, [state, autoListening, lastScreenAnalysis, addMessage]);
   const addMessage = useCallback((text: string, isUser: boolean) => {
     const message: Message = {
       id: Date.now().toString(),
@@ -40,12 +111,29 @@ export function useVoiceAssistant() {
         addMessage("Powering down. Press the orb to wake me up.", false);
         
         setState('speaking');
-        const audioBuffer = await textToSpeech("Powering down. Press the orb to wake me up.");
+        const audioBuffer = await textToSpeech("Powering down. Say 'Hey FRIDAY' to wake me up.");
         await playAudio(audioBuffer);
         
-        // Power down - stop auto listening and go to idle
+        // Power down - stop everything and start wake word listening
         setAutoListening(false);
+        setIsAwake(false);
         setState('idle');
+        
+        // Stop dynamic analysis
+        if (dynamicAnalysisTimer.current) {
+          clearInterval(dynamicAnalysisTimer.current);
+        }
+        
+        // Start wake word listening
+        setTimeout(() => {
+          speechRecognition.current.startWakeWordListening(() => {
+            setIsAwake(true);
+            setAutoListening(true);
+            setState('listening');
+            startListeningContinuous();
+            startDynamicScreenAnalysis();
+          });
+        }, 1000);
         return;
       }
       
@@ -62,12 +150,12 @@ export function useVoiceAssistant() {
       
       if (needsScreenAnalysis) {
         try {
-          const screenshot = await captureScreen();
+          const screenshot = await captureScreen(true);
           response = await analyzeScreenWithGPT(screenshot, transcript);
           addMessage(transcript, true).hasScreenshot = true;
           
-          // Clear screenshot reference to help with garbage collection
-          // The screenshot variable will be cleaned up automatically
+          // Clear screenshot immediately
+          setLastScreenAnalysis('');
         } catch (screenError) {
           console.warn('Screen capture failed, using regular response:', screenError);
           response = await generateResponse(transcript, getConversationHistory());
@@ -97,7 +185,7 @@ export function useVoiceAssistant() {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       setState('idle');
     }
-  }, [addMessage, getConversationHistory, autoListening]);
+  }, [addMessage, getConversationHistory, autoListening, startDynamicScreenAnalysis]);
 
   const startListeningContinuous = useCallback(() => {
     speechRecognition.current.startListening(
@@ -137,11 +225,13 @@ export function useVoiceAssistant() {
       return;
     }
 
+    setIsAwake(true);
     try {
       setState('listening');
       setError(null);
       setAutoListening(true);
       
+      startDynamicScreenAnalysis();
       startListeningContinuous();
     } catch (error) {
       console.error('Voice assistant error:', error);
@@ -149,38 +239,13 @@ export function useVoiceAssistant() {
       setState('idle');
       setAutoListening(false);
     }
-  }, [startListeningContinuous]);
+  }, [startListeningContinuous, startDynamicScreenAnalysis]);
 
   const stopListening = useCallback(() => {
     speechRecognition.current.stopListening();
     setAutoListening(false);
     setState('idle');
   }, []);
-
-  const analyzeScreen = useCallback(async () => {
-    if (state !== 'idle') return;
-    
-    try {
-      setState('thinking');
-      setError(null);
-      
-      const screenshot = await captureScreen();
-      const response = await analyzeScreenWithGPT(screenshot, "What do you see on my screen? Help me with what I'm working on.");
-      
-      addMessage("Analyze my screen", true).hasScreenshot = true;
-      addMessage(response, false);
-      
-      setState('speaking');
-      const audioBuffer = await textToSpeech(response);
-      await playAudio(audioBuffer);
-      
-      setState('idle');
-    } catch (error) {
-      console.error('Screen analysis error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to analyze screen');
-      setState('idle');
-    }
-  }, [state, addMessage]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -192,9 +257,9 @@ export function useVoiceAssistant() {
     messages,
     error,
     autoListening,
+    isAwake,
     startListening,
     stopListening,
-    analyzeScreen,
     clearMessages,
     isSupported: speechRecognition.current.isSupported(),
   };

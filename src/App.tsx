@@ -11,9 +11,9 @@ function App() {
     messages,
     error,
     autoListening,
+    isAwake,
     startListening,
     stopListening,
-    analyzeScreen,
     clearMessages,
     isSupported,
   } = useVoiceAssistant();
@@ -53,19 +53,23 @@ function App() {
           <Orb 
             state={state} 
             onClick={handleOrbClick} 
-            onScreenAnalyze={analyzeScreen}
             autoListening={autoListening}
+            isAwake={isAwake}
           />
         </div>
 
         {/* Status display */}
-        <StatusDisplay state={state} error={error} autoListening={autoListening} />
+        <StatusDisplay state={state} error={error} autoListening={autoListening} isAwake={isAwake} />
 
         {/* Instructions */}
         <div className="text-center max-w-md">
           {!isSupported ? (
             <p className="text-red-400">
               Speech recognition is not supported in this browser. Please use Chrome, Safari, or Edge.
+            </p>
+          ) : !isAwake ? (
+            <p className="text-gray-300">
+              FRIDAY is in standby mode. Say "Hey FRIDAY" to wake up.
             </p>
           ) : state === 'idle' ? (
             <p className="text-gray-300">
@@ -74,7 +78,7 @@ function App() {
           ) : (
             <>
               <p className="text-gray-400 text-sm">
-                Say "analyze my screen" for screen analysis • Say "power down" to enter standby
+                Say "power down" to enter standby • Dynamic screen analysis active
               </p>
             <p className="text-gray-300">
               {state === 'listening' && (autoListening ? 'Speak naturally - I\'ll respond when you pause' : 'Speak now, or click the orb to stop listening')}
