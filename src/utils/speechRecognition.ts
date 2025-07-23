@@ -1,11 +1,9 @@
 export class SpeechRecognitionService {
   private recognition: SpeechRecognition | null = null;
   private isListening = false;
-  private isWakeWordListening = false;
   private silenceTimer: NodeJS.Timeout | null = null;
   private onSilenceDetected?: () => void;
   private onNoSpeechDetected?: () => void;
-  private onWakeWordDetected?: () => void;
 
   constructor() {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -23,64 +21,6 @@ export class SpeechRecognitionService {
     this.recognition.lang = 'en-US';
   }
 
-  public startWakeWordListening(onWakeWordDetected: () => void): void {
-    if (!this.recognition || this.isListening) return;
-
-    this.onWakeWordDetected = onWakeWordDetected;
-    this.isWakeWordListening = true;
-
-    this.recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript.toLowerCase();
-        if (event.results[i].isFinal) {
-          // Check for wake words
-          if (transcript.includes('hey friday') || 
-              transcript.includes('hey friday') || 
-              transcript.includes('friday') ||
-              transcript.includes('wake up friday')) {
-            this.isWakeWordListening = false;
-            this.recognition?.stop();
-            if (this.onWakeWordDetected) {
-              this.onWakeWordDetected();
-            }
-            return;
-          }
-        }
-      }
-    };
-
-    this.recognition.onerror = (event) => {
-      if (event.error === 'no-speech' && this.isWakeWordListening) {
-        // Restart wake word listening after a brief pause
-        setTimeout(() => {
-          if (this.isWakeWordListening) {
-            this.recognition?.start();
-          }
-        }, 1000);
-      }
-    };
-
-    this.recognition.onend = () => {
-      if (this.isWakeWordListening) {
-        // Restart wake word listening
-        setTimeout(() => {
-          if (this.isWakeWordListening) {
-            this.recognition?.start();
-          }
-        }, 500);
-      }
-    };
-
-    this.recognition.start();
-  }
-
-  public stopWakeWordListening(): void {
-    this.isWakeWordListening = false;
-    if (this.recognition && !this.isListening) {
-      this.recognition.stop();
-    }
-  }
-
   public startListening(onSilenceDetected?: () => void, onNoSpeechDetected?: () => void): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.recognition) {
@@ -91,11 +31,6 @@ export class SpeechRecognitionService {
       if (this.isListening) {
         reject(new Error('Already listening'));
         return;
-      }
-
-      // Stop wake word listening when starting active listening
-      if (this.isWakeWordListening) {
-        this.stopWakeWordListening();
       }
 
       this.onSilenceDetected = onSilenceDetected;
@@ -169,10 +104,6 @@ export class SpeechRecognitionService {
       this.isListening = false;
       this.clearSilenceTimer();
     }
-  }
-
-  public getIsWakeWordListening(): boolean {
-    return this.isWakeWordListening;
   }
 
   public isSupported(): boolean {

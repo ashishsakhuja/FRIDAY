@@ -6,31 +6,9 @@ interface StatusDisplayProps {
   state: AssistantState;
   error: string | null;
   autoListening?: boolean;
-  isAwake?: boolean;
 }
 
-export function StatusDisplay({ state, error, autoListening, isAwake }: StatusDisplayProps) {
-  if (!isAwake) {
-    return (
-      <div className="flex flex-col items-center space-y-2">
-        <div className="flex items-center space-x-2">
-          <MicOff className="w-6 h-6 text-gray-500" />
-          <span className="text-lg font-medium text-gray-500">
-            Standby Mode
-          </span>
-        </div>
-        <div className="text-xs text-gray-400 text-center">
-          Listening for wake word • Say "Hey FRIDAY" to activate
-        </div>
-        {error && (
-          <div className="text-red-400 text-sm text-center max-w-md">
-            {error}
-          </div>
-        )}
-      </div>
-    );
-  }
-
+export function StatusDisplay({ state, error, autoListening }: StatusDisplayProps) {
   const getStatusInfo = () => {
     switch (state) {
       case 'listening':

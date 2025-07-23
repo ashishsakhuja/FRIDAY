@@ -4,17 +4,13 @@ import type { AssistantState } from '../types';
 interface OrbProps {
   state: AssistantState;
   onClick: () => void;
+  onScreenAnalyze?: () => void;
   autoListening?: boolean;
-  isAwake?: boolean;
 }
 
-export function Orb({ state, onClick, autoListening, isAwake }: OrbProps) {
+export function Orb({ state, onClick, onScreenAnalyze, autoListening }: OrbProps) {
   const getOrbClasses = () => {
     const baseClasses = 'relative w-48 h-48 rounded-full cursor-pointer transition-all duration-500 transform hover:scale-105';
-    
-    if (!isAwake) {
-      return `${baseClasses} opacity-50 shadow-lg shadow-gray-500/30`;
-    }
     
     switch (state) {
       case 'listening':
@@ -29,10 +25,6 @@ export function Orb({ state, onClick, autoListening, isAwake }: OrbProps) {
   };
 
   const getGradient = () => {
-    if (!isAwake) {
-      return 'from-gray-500 via-gray-600 to-gray-700';
-    }
-    
     switch (state) {
       case 'listening':
         return autoListening ? 'from-green-400 via-blue-500 to-blue-600' : 'from-blue-400 via-blue-500 to-blue-600';
@@ -93,11 +85,14 @@ export function Orb({ state, onClick, autoListening, isAwake }: OrbProps) {
         )}
       </div>
       
-      {/* Wake status indicator */}
-      {!isAwake && (
-        <div className="text-center mt-4">
-          <p className="text-gray-400 text-sm">Say "Hey FRIDAY" to wake up</p>
-        </div>
+      {/* Screen Analysis Button */}
+      {onScreenAnalyze && state === 'idle' && (
+        <button
+          onClick={onScreenAnalyze}
+          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-medium hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-105 shadow-lg"
+        >
+          📱 Analyze Screen
+        </button>
       )}
     </div>
   );
